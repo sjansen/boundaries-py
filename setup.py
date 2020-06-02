@@ -46,7 +46,7 @@ setup(
     packages=find_packages(where='src'),
     python_requires='>=3.5, <4',
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['parso'],
+    install_requires=['parso>=0.7.0,<0.8'],
     entry_points={
         'console_scripts': [
             'py.boundaries=boundaries:main',
