@@ -28,9 +28,21 @@ Bar().foo()
 
 from d import e
 
-print(type(e))
+print("e:", type(e))
 
 
 import d.e
 
-print(type(d.e))
+d.foo()
+d.e.foo()
+
+
+from d import e
+
+print("e:", type(e))
+
+
+try:
+    import z
+except:
+    z = None

@@ -9,16 +9,19 @@ def main():
     for arg in sys.argv[1:]:
         module = Module.parse(arg)
         print(module.path)
-        for n in sorted(module.imports):
-            print("   ", n)
+        for x in sorted(module.exports):
+            print("   ", x)
+        print("    --")
+        for x in sorted(module.imports):
+            print("   ", x)
 
 
 class Import:
     def __init__(self, dotted_name, is_inline, is_module):
-        self._as_tuple = None
         self.dotted_name = dotted_name
         self.is_inline = is_inline
         self.is_module = is_module
+        self._as_tuple = None
 
     @property
     def as_tuple(self):
@@ -48,6 +51,37 @@ class Module:
         return cls(path, tree)
 
     def __init__(self, path, tree):
+        self.path = path
+        self.tree = tree
+        self._exports = None
+        self._imports = None
+
+    @property
+    def exports(self):
+        if self._exports is not None:
+            return self._exports
+
+        def walk(tree, is_inline):
+            if tree.type in ("classdef", "funcdef"):
+                names.add(tree.name.value)
+            elif tree.type == "name":
+                if tree.is_definition():
+                    names.add(tree.value)
+            elif hasattr(tree, "children"):
+                for subtree in tree.children:
+                    walk(subtree, is_inline)
+
+        names = set()
+        walk(self.tree, False)
+        self._exports = names
+
+        return names
+
+    @property
+    def imports(self):
+        if self._imports is not None:
+            return self._imports
+
         def walk(tree, is_inline):
             if tree.type == "import_from":
                 for path in tree.get_paths():
@@ -65,8 +99,7 @@ class Module:
                     walk(subtree, is_inline)
 
         imports = set()
-        walk(tree, False)
+        walk(self.tree, False)
+        self._imports = imports
 
-        self.imports = imports
-        self.path = path
-        self.tree = tree
+        return imports
