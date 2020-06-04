@@ -2,11 +2,18 @@ import a
 import a.b
 from a.b import c as abc
 
+a.foo()
+a.b.foo()
+abc.foo()
+
 
 def foo():
     from b import foo
 
     foo()
+
+
+foo()
 
 
 class Bar(object):
@@ -16,8 +23,14 @@ class Bar(object):
         self.c.foo()
 
 
-a.foo()
-a.b.foo()
-abc.foo()
-foo()
 Bar().foo()
+
+
+from d import e
+
+print(type(e))
+
+
+import d.e
+
+print(type(d.e))
