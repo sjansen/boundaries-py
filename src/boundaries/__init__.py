@@ -2,13 +2,41 @@ import sys
 
 import parso
 
+__all__ = ["main", "Module"]
+
 
 def main():
     for arg in sys.argv[1:]:
         module = Module.parse(arg)
         print(module.path)
-        for n in sorted(module.dotted_names):
-            print('   ', n)
+        for n in sorted(module.imports):
+            print("   ", n)
+
+
+class Import:
+    def __init__(self, dotted_name, is_inline, is_module):
+        self._as_tuple = None
+        self.dotted_name = dotted_name
+        self.is_inline = is_inline
+        self.is_module = is_module
+
+    @property
+    def as_tuple(self):
+        if self._as_tuple is None:
+            self._as_tuple = (self.dotted_name, self.is_inline, self.is_module)
+        return self._as_tuple
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.as_tuple == other.as_tuple
+
+    def __hash__(self):
+        return hash(self.as_tuple)
+
+    def __lt__(self, other):
+        return type(self) == type(other) and self.as_tuple < other.as_tuple
+
+    def __repr__(self):
+        return repr(self.as_tuple)
 
 
 class Module:
@@ -20,21 +48,25 @@ class Module:
         return cls(path, tree)
 
     def __init__(self, path, tree):
-        def walk(tree):
+        def walk(tree, is_inline):
             if tree.type == "import_from":
                 for path in tree.get_paths():
-                    dotted_names.add(".".join(name.value for name in path))
+                    dotted_name = ".".join(name.value for name in path)
+                    imports.add(Import(dotted_name, is_inline, False))
             elif tree.type == "import_name":
                 for path in tree.get_paths():
-                    dotted_names.add(".".join(name.value for name in path))
-
-            if hasattr(tree, "children"):
+                    dotted_name = ".".join(name.value for name in path)
+                    imports.add(Import(dotted_name, is_inline, True))
+            elif tree.type in ("classdef", "funcdef"):
                 for subtree in tree.children:
-                    walk(subtree)
+                    walk(subtree, True)
+            elif hasattr(tree, "children"):
+                for subtree in tree.children:
+                    walk(subtree, is_inline)
 
-        dotted_names = set()
-        walk(tree)
+        imports = set()
+        walk(tree, False)
 
-        self.dotted_names = dotted_names
+        self.imports = imports
         self.path = path
         self.tree = tree
