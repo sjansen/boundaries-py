@@ -6,7 +6,8 @@
 python3 -m venv venv
 source venv/bin/activate
 python setup.py develop
-pip install tox
+pip install pre-commit tox
+pre-commit install
 ```
 
 ### Using direnv
