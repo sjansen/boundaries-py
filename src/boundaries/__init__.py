@@ -6,14 +6,40 @@ __all__ = ["main", "Module"]
 
 
 def main():
+    loader = Loader()
     for arg in sys.argv[1:]:
-        module = Module.parse(arg)
-        print(module.path)
+        module = loader.load(arg)
+        print(module.path, module.is_package)
         for x in sorted(module.exports):
             print("   ", x)
         print("    --")
         for x in sorted(module.imports):
             print("   ", x)
+
+
+class Export:
+    def __init__(self, name, is_imported):
+        self.name = name
+        self.is_imported = is_imported
+        self._as_tuple = None
+
+    @property
+    def as_tuple(self):
+        if self._as_tuple is None:
+            self._as_tuple = (self.name, self.is_imported)
+        return self._as_tuple
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.as_tuple == other.as_tuple
+
+    def __hash__(self):
+        return hash(self.as_tuple)
+
+    def __lt__(self, other):
+        return type(self) == type(other) and self.as_tuple < other.as_tuple
+
+    def __repr__(self):
+        return repr(self.as_tuple)
 
 
 class Import:
@@ -42,15 +68,28 @@ class Import:
         return repr(self.as_tuple)
 
 
-class Module:
-    @classmethod
-    def parse(cls, path):
+class Loader:
+    def __init__(self, sys_path=None):
+        self._cache = {}
+        self._sys_path = sys_path
+
+    def load(self, path):
         with open(path) as f:
             code = f.read()
-        tree = parso.parse(code)
-        return cls(path, tree)
 
-    def __init__(self, path, tree):
+        module = self.parse(code, path)
+        # TODO cache module
+        return module
+
+    def parse(self, code, path, is_package=None):
+        tree = parso.parse(code)
+        return Module(path, tree, is_package, self)
+
+
+class Module:
+    def __init__(self, path, tree, is_package, loader):
+        self.is_package = is_package
+        self.loader = loader
         self.path = path
         self.tree = tree
         self._exports = None
@@ -61,21 +100,24 @@ class Module:
         if self._exports is not None:
             return self._exports
 
-        def walk(tree, is_inline):
-            if tree.type in ("classdef", "funcdef"):
-                names.add(tree.name.value)
-            elif tree.type == "name":
+        def walk(tree, is_imported):
+            if tree.type == "name":
                 if tree.is_definition():
-                    names.add(tree.value)
+                    exports.add(Export(tree.value, is_imported))
+            elif tree.type in ("classdef", "funcdef"):
+                exports.add(Export(tree.name.value, is_imported))
+            elif tree.type in ("import_from", "import_name"):
+                for subtree in tree.children:
+                    walk(subtree, True)
             elif hasattr(tree, "children"):
                 for subtree in tree.children:
-                    walk(subtree, is_inline)
+                    walk(subtree, is_imported)
 
-        names = set()
+        exports = set()
         walk(self.tree, False)
-        self._exports = names
+        self._exports = exports
 
-        return names
+        return exports
 
     @property
     def imports(self):
